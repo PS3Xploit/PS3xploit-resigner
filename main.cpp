@@ -14,6 +14,12 @@
 #include "aes.h"
 #include "util.h"
 #include "sha1.h"
+#include "pkg2zip_aes.h"
+
+#ifdef _WIN32
+#define fseek _fseeki64
+#define ftell _ftelli64
+#endif
 
 uint8_t p_fixed[20]={0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0x00,0x00,0x00,0x01,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
 uint8_t a_fixed[20]={0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0x00,0x00,0x00,0x01,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFC};
@@ -1071,7 +1077,8 @@ static void check_ps2_pkg_patch(uint8_t *pkg, uint64_t offset)
 		strncpy(fname, (char *)(pkg + fname_off), fname_len);
 		printf("%s\n", fname);
 
-			if((strstr(fname, "ISO.BIN.ENC")) || (strstr(fname, "ISO.BIN.EDAT")) || (strstr(fname, "CONFIG")))
+			if((strstr(fname, "ISO.BIN.ENC")) || (strstr(fname, "ISO.BIN.EDAT")) || (strstr(fname, "CONFIG")) || (strstr(fname, "MINIS.EDAT"))
+				|| (strstr(fname, "MINIS2.EDAT")) || (strstr(fname, "drm.edat")) || (strstr(fname, "PSP.EDAT"))) //whitelist for the files to be signed  
 			{
 				printf("found %s..Resigning\n", fname);
 				//sign_enc_buf(pkg+file_offset);
@@ -1092,8 +1099,6 @@ typedef struct __TOC_HEADER {
 	uint8_t psp_key_type;
 	uint8_t shit_stuff[7];
 } TOC_HEADER;
-
-#include "pkg2zip_aes.h"
 
 int parse_psp_pkg(uint8_t *pkg, uint32_t toc_len, uint8_t *iv_const, uint32_t data_size)
 {
@@ -1271,7 +1276,7 @@ int main(int argc, char *argv[])
 		goto done;
 	}
 	
-	if((!strstr(argv[1], "EDAT")) && (!strstr(argv[1], "pkg")) && (!strstr(argv[1], "PKG")) && (!strstr(argv[1], "edat")) && (!strstr(argv[1], "ENC")))
+	if((!strstr(argv[1], "EDAT")) && (!strstr(argv[1], "pkg")) && (!strstr(argv[1], "PKG")) && (!strstr(argv[1], "edat")) && (!strstr(argv[1], "ENC")) && (!strstr(argv[1], "CONFIG")))
 	{
 		char *slash2 = strrchr (argv[1], '\\');
 		if (slash2 != NULL)
@@ -1286,6 +1291,7 @@ int main(int argc, char *argv[])
 		if(read_act_dat_and_make_rif(argv[1])==0)
 		{
 			sign_act_dat();
+			printf("\nits done!\n");
 		}
 		else
 		{

@@ -742,10 +742,7 @@ int aes_crypt_ctr_xor( aes_context *ctx,
     return( 0 );
 }
 
-typedef unsigned char     uint8_t;
-typedef unsigned short    uint16_t;
-typedef unsigned int      uint32_t;
-typedef unsigned long int uint64_t;
+#include <stdint.h>
 
 unsigned char const_Rb[16] = {
 

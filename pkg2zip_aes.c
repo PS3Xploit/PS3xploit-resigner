@@ -4,27 +4,6 @@
 #include <assert.h>
 #include <string.h>
 
-#if defined(_MSC_VER)
-#define PLATFORM_SUPPORTS_AESNI 1
-
-#include <intrin.h>
-static void get_cpuid(uint32_t level, uint32_t* arr)
-{
-    __cpuidex((int*)arr, level, 0);
-}
-
-#elif defined(__x86_64__) || defined(__i386__)
-#define PLATFORM_SUPPORTS_AESNI 1
-
-#include <cpuid.h>
-static void get_cpuid(uint32_t level, uint32_t* arr)
-{
-    __cpuid_count(level, 0, arr[0], arr[1], arr[2], arr[3]);
-}
-
-#else
-#define PLATFORM_SUPPORTS_AESNI 0
-#endif
 
 static const uint8_t rcon[] = {
     0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36,

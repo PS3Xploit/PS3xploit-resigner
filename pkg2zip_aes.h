@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "pkg2zip_utils.h"
 
 typedef struct aes128_key {
@@ -17,3 +21,7 @@ void aes128_ctr_xor(const aes128_key* ctx, const uint8_t* iv, uint64_t block, ui
 void aes128_cmac(const uint8_t* key, const uint8_t* buffer, uint32_t size, uint8_t* mac);
 
 void aes128_psp_decrypt(const aes128_key* ctx, const uint8_t* iv, uint32_t index, uint8_t* buffer, uint32_t size);
+
+#ifdef __cplusplus
+}
+#endif

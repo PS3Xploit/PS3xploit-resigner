@@ -10,6 +10,7 @@
 
 #include "types.h"
 #include "sha1.h"
+#include <stdint.h>
 
 /*! Verbose. */
 extern BOOL _verbose;

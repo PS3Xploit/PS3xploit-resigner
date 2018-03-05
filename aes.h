@@ -149,10 +149,7 @@ int aes_crypt_ctr_xor( aes_context *ctx,
 
 					   
 					   
-typedef unsigned char     uint8_t;
-typedef unsigned short    uint16_t;
-typedef unsigned int      uint32_t;
-typedef unsigned long int uint64_t;
+#include <stdint.h>
 void aes_cmac(aes_context *ctx, uint64_t length, unsigned char *input, unsigned char *output);
 
 #ifdef __cplusplus
