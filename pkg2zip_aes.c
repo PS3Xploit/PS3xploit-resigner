@@ -1,9 +1,61 @@
 #include "pkg2zip_aes.h"
 #include "pkg2zip_utils.h"
+#include "pkg2zip_aes_x86.h"
 
 #include <assert.h>
 #include <string.h>
 
+#if defined(_MSC_VER)
+#define PLATFORM_SUPPORTS_AESNI 1
+
+#include <intrin.h>
+static void get_cpuid(uint32_t level, uint32_t* arr)
+{
+    __cpuidex((int*)arr, level, 0);
+}
+
+#elif defined(__x86_64__) || defined(__i386__)
+#define PLATFORM_SUPPORTS_AESNI 1
+
+#include <cpuid.h>
+static void get_cpuid(uint32_t level, uint32_t* arr)
+{
+    __cpuid_count(level, 0, arr[0], arr[1], arr[2], arr[3]);
+}
+
+#else
+#define PLATFORM_SUPPORTS_AESNI 0
+#endif
+
+#if PLATFORM_SUPPORTS_AESNI
+int aes128_supported_x86()
+{
+    static int init = 0;
+    static int supported;
+    if (!init)
+    {
+        init = 1;
+
+        uint32_t a[4];
+        get_cpuid(0, a);
+
+        if (a[0] >= 1)
+        {
+            get_cpuid(1, a);
+            supported = ((a[2] & (1 << 9)) && (a[2] & (1 << 25)));
+        }
+    }
+    return supported;
+}
+
+void aes128_init_x86(aes128_key* context, const uint8_t* key);
+void aes128_init_dec_x86(aes128_key* context, const uint8_t* key);
+void aes128_ecb_encrypt_x86(const aes128_key* context, const uint8_t* input, uint8_t* output);
+void aes128_ecb_decrypt_x86(const aes128_key* context, const uint8_t* input, uint8_t* output);
+void aes128_ctr_xor_x86(const aes128_key* context, const uint8_t* iv, uint8_t* buffer, size_t size);
+void aes128_cmac_process_x86(const aes128_key* ctx, uint8_t* block, const uint8_t *buffer, uint32_t size);
+void aes128_psp_decrypt_x86(const aes128_key* ctx, const uint8_t* prev, const uint8_t* block, uint8_t* buffer, uint32_t size);
+#endif
 
 static const uint8_t rcon[] = {
     0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36,
@@ -139,6 +191,13 @@ static uint32_t setup_mix2(uint32_t x)
 
 void aes128_init(aes128_key* ctx, const uint8_t* key)
 {
+#if PLATFORM_SUPPORTS_AESNI
+    if (aes128_supported_x86())
+    {
+        aes128_init_x86(ctx, key);
+        return;
+    }
+#endif
 
     uint32_t* ekey = ctx->key;
 
@@ -160,7 +219,13 @@ void aes128_init(aes128_key* ctx, const uint8_t* key)
 
 void aes128_init_dec(aes128_key* ctx, const uint8_t* key)
 {
-
+#if PLATFORM_SUPPORTS_AESNI
+    if (aes128_supported_x86())
+    {
+        aes128_init_dec_x86(ctx, key);
+        return;
+    }
+#endif
 
     aes128_key enc;
     aes128_init(&enc, key);
@@ -268,12 +333,25 @@ static void aes128_decrypt(const aes128_key* ctx, const uint8_t* input, uint8_t*
 
 void aes128_ecb_encrypt(const aes128_key* ctx, const uint8_t* input, uint8_t* output)
 {
-
+#if PLATFORM_SUPPORTS_AESNI
+    if (aes128_supported_x86())
+    {
+        aes128_ecb_encrypt_x86(ctx, input, output);
+        return;
+    }
+#endif
     aes128_encrypt(ctx, input, output);
 }
 
 void aes128_ecb_decrypt(const aes128_key* ctx, const uint8_t* input, uint8_t* output)
 {
+#if PLATFORM_SUPPORTS_AESNI
+    if (aes128_supported_x86())
+    {
+        aes128_ecb_decrypt_x86(ctx, input, output);
+        return;
+    }
+#endif
     aes128_decrypt(ctx, input, output);
 }
 
@@ -297,6 +375,13 @@ void aes128_ctr_xor(const aes128_key* context, const uint8_t* iv, uint64_t block
     }
     ctr_add(counter, block);
 
+#if PLATFORM_SUPPORTS_AESNI
+    if (aes128_supported_x86())
+    {
+        aes128_ctr_xor_x86(context, counter, buffer, size);
+        return;
+    }
+#endif
 
     while (size >= 16)
     {
@@ -332,6 +417,13 @@ static void aes128_cmac_process(const aes128_key* ctx, uint8_t* block, const uin
 {
     assert(size % 16 == 0);
 
+#if PLATFORM_SUPPORTS_AESNI
+    if (aes128_supported_x86())
+    {
+        aes128_cmac_process_x86(ctx, block, buffer, size);
+        return;
+    }
+#endif
     for (uint32_t i = 0; i < size; i += 16)
     {
         for (size_t k = 0; k < 16; k++)
@@ -444,6 +536,13 @@ void aes128_psp_decrypt(const aes128_key* ctx, const uint8_t* iv, uint32_t index
     memcpy(block, iv, 16);
     set32le(block + 12, index);
 
+#if PLATFORM_SUPPORTS_AESNI
+    if (aes128_supported_x86())
+    {
+        aes128_psp_decrypt_x86(ctx, prev, block, buffer, size);
+        return;
+    }
+#endif
 
     for (uint32_t i = 0; i < size; i += 16)
     {

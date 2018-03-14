@@ -1,8 +1,8 @@
 CC=g++
-CFLAGS=-fpermissive
+CFLAGS=-pipe -fvisibility=hidden -Werror -D_GNU_SOURCE -O3 -static 
 OS_TARGET=ps3xploit_rifgen_edatresign
-LDFLAGS=-lz
-OBJS=aes.o aes_omac.o main.o sha1.o util.o pkg2zip_aes.c
+LDFLAGS=-lz -lcrypto -lssl
+OBJS=aes.o aes_omac.o main.o sha1.o util.o pkg2zip_aes.o pkg2zip_aes_x86.o
 .SILENT:
 .SUFFIXES: .c .cpp .o
 
@@ -15,6 +15,15 @@ $(OS_TARGET): $(OBJS)
 	fi
 	
 
+%aes_x86.o: %aes_x86.c
+	@echo [C] $<
+	gcc ${CFLAGS} -std=c99 -maes -mssse3 -MMD -c -o $@ $<
+
+%main.o: %main.cpp
+	@echo [C] $<
+	$(CC) ${CFLAGS} -std=c99 -c main.cpp
+	
+	
 %.o: %.c
 	${COMPILE_STATUS}
 	if ${CC} ${CFLAGS} ${CFLAGS} -c -o $@ $<; then \
@@ -33,7 +42,7 @@ $(OS_TARGET): $(OBJS)
 
 clean:
 	@printf "\033[K\033[0;32mCleaning\033[1;32m\033[0;32m...\033[0m\n"
-	rm -rf *.o $(OS_TARGET)
+	rm -rf *.o *.d $(OS_TARGET)
 
 install:
 	@printf "\033[K\033[0;32mInstalling\033[1;32m\033[0;32m...\033[0m\n"
