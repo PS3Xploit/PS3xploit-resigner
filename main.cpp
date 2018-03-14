@@ -699,8 +699,30 @@ FILE *forge_act_dat()
 	return fp=fopen("act.dat", "rb");
 }
 
-int read_act_dat_and_make_rif(char *content_id)
+int read_act_dat_and_make_rif(char *path)
 {
+	char *content_id=(char *)malloc(256);
+	memset(content_id,0,256);
+	strcpy(content_id, path);
+	char *slash2 = strrchr (content_id, '\\');
+	if (slash2 != NULL)
+	{
+		*slash2 = '\0';
+		content_id=slash2+1;
+	}
+	
+	char *slash_rev = strrchr (content_id, '/');
+	if (slash_rev != NULL)
+	{
+		*slash_rev = '\0';
+		content_id=slash_rev+1;
+	}
+	
+	char *lastdot = strrchr (content_id, '.');
+	if (lastdot != NULL)
+		*lastdot = '\0';
+	
+		
 	uint8_t idps[0x10];
 	aes_context aes_ctxt;
 	uint8_t idps_const[0x10]={0x5E,0x06,0xE0,0x4F,0xD9,0x4A,0x71,0xBF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01};
@@ -731,11 +753,9 @@ int read_act_dat_and_make_rif(char *content_id)
 	fseek(fp,0x10,SEEK_SET);
 	fread(act_dat_key, 0x10,1,fp); //copy first key in primary table of act.dat
 	fclose(fp);
-	char rap_path[0x80];
-	strcpy(rap_path, content_id);
-	strcat(rap_path, ".rap");
-	printf("reading:%s\n", rap_path);
-	fp=fopen(rap_path, "rb");
+
+	printf("reading:%s\n", path);
+	fp=fopen(path, "rb");
 	if(!fp)
 	{
 		return -1;
@@ -791,9 +811,8 @@ int read_act_dat_and_make_rif(char *content_id)
 	memcpy(rif+0xb0, sha1_digest,0x10);
 	memset(rif+0xc0, 0, 0x40);
 	_fill_rand_bytes(rif+0x100, 0x100);
-	char path[0x80];
-	strcpy(path, content_id);
-	strcat(path, ".rif");
+
+	strcpy(path+strlen(path)-4, ".rif");
 	printf("writing:%s\n", path);
 	fp=fopen(path, "wb");
 	fwrite(rif, 0x98,1,fp); //only needed till here
@@ -1062,13 +1081,13 @@ static void decrypt_debug_pkg_sse(uint8_t *pkg, uint64_t size, uint64_t offset)
 
 	SHA1(key, sizeof key, bfr);
 
+	region_xor_sse(pkg+offset,bfr, 0x10); 
 	#pragma unroll
-	for (i = 0; i < size; i+=0x10) {
-			if(i)
-			{
-				wbe64(key + 0x38, be64(key + 0x38) + 1);
-				SHA1(key, sizeof key, bfr);
-			}
+	for (i = 0x10; i < size; i+=0x10) {
+			
+			wbe64(key + 0x38, be64(key + 0x38) + 1);
+			SHA1(key, sizeof key, bfr);
+			
 			region_xor_sse(pkg+offset+i,bfr, 0x10); 
 			if(i%(100*1024*1024)==0)
 			{
@@ -1339,22 +1358,12 @@ int main(int argc, char *argv[])
 		goto done;
 	}
 	
-	if((!strstr(argv[1], ".EDAT")) && (!strstr(argv[1], ".pkg")) && (!strstr(argv[1], ".PKG")) && (!strstr(argv[1], ".edat")) && (!strstr(argv[1], ".ENC")) && (!strstr(argv[1], "CONFIG")))
+if((strstr(argv[1], ".rap")) || (strstr(argv[1], ".RAP")))
 	{
-		char *slash2 = strrchr (argv[1], '\\');
-		if (slash2 != NULL)
-		{
-			*slash2 = '\0';
-			argv[1]=slash2+1;
-		}
-		char *lastdot = strrchr (argv[1], '.');
-		if (lastdot != NULL)
-			*lastdot = '\0';
-		
 		if(read_act_dat_and_make_rif(argv[1])==0)
 		{
 			sign_act_dat();
-			printf("\nits done!\n");
+			printf("\nits done!\npress enter\n");
 		}
 		else
 		{
@@ -1511,8 +1520,11 @@ int main(int argc, char *argv[])
 			uint8_t retail_flag=0x80;
 			if(argv[2])
 			{
-				*(uint8_t *)&buf[7]=2; //type psp set
-				printf("PSP flag set!\n");
+				if(strstr(argv[2], "psp"))
+				{
+					*(uint8_t *)&buf[7]=2; //type psp set
+					printf("PSP flag set!\n");
+				}
 			}
 			else
 			{	

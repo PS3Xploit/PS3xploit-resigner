@@ -22,19 +22,13 @@
 
 void region_xor_sse(unsigned char* dst, unsigned char* src, int block_size)
 {
-  const __m128i* wrd_ptr = (__m128i*)src;
-  const __m128i* wrd_end = (__m128i*)(src+block_size);
   __m128i* dst_ptr = (__m128i*)dst;
 
-  do{
-    __m128i xmm1 = _mm_load_si128(wrd_ptr);
-    __m128i xmm2 = _mm_load_si128(dst_ptr);
+   __m128i xmm1 = _mm_load_si128((__m128i*)src);
+   __m128i xmm2 = _mm_load_si128(dst_ptr);
 
     xmm2 = _mm_xor_si128(xmm1, xmm2);
     _mm_store_si128(dst_ptr, xmm2);
-    ++dst_ptr;
-    ++wrd_ptr;
-  }while(wrd_ptr < wrd_end);
 }
 
 void aes128_init_x86(aes128_key* ctx, const uint8_t* key)
