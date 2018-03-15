@@ -28,6 +28,7 @@ for %%I in (./raps/*.rap) do (
 
 pause
 
+if not exist "%cd%\exdata" mkdir "%cd%\exdata"
 copy /Y "%cd%\raps\*.rif" "%cd%\exdata\"
 copy /Y "%cd%\signed_act.dat" "%cd%\exdata\act.dat"
 del "%cd%\raps\*rif"
