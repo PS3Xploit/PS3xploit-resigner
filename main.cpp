@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <time.h>
-#include <windows.h>
+#include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
