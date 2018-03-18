@@ -31,10 +31,10 @@ pause
 if not exist "%cd%\exdata" mkdir "%cd%\exdata"
 copy /Y "%cd%\raps\*.rif" "%cd%\exdata\"
 copy /Y "%cd%\signed_act.dat" "%cd%\exdata\act.dat"
-del "%cd%\raps\*rif"
 
 %PKG% --contentid %CONTENTID% %PKG_DIR% %PKG_NAME%
 ps3xploit_rifgen_edatresign %PKG_NAME% ps3
 del "%PKG_NAME%"
+del "%cd%\raps\*rif"
 
 pause

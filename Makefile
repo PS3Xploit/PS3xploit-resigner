@@ -1,7 +1,7 @@
 CC=g++
-CFLAGS=-pipe -fvisibility=hidden -Werror -D_GNU_SOURCE -O3 -static 
+CFLAGS=-pipe -fvisibility=hidden -D_GNU_SOURCE -O3 -static -D_FILE_OFFSET_BITS=64
 OS_TARGET=ps3xploit_rifgen_edatresign
-LDFLAGS=-lz -lcrypto -lssl
+LDFLAGS=-lcrypto -lssl
 OBJS=aes.o aes_omac.o main.o sha1.o util.o pkg2zip_aes.o pkg2zip_aes_x86.o
 .SILENT:
 .SUFFIXES: .c .cpp .o

@@ -24,6 +24,9 @@
 #define ftell _ftelli64
 #endif
 
+#define _LARGEFILE64_SOURCE
+#define _FILE_OFFSET_BITS 64
+
 uint8_t p_fixed[20]={0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0x00,0x00,0x00,0x01,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
 uint8_t a_fixed[20]={0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0x00,0x00,0x00,0x01,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFC};
 uint8_t b_fixed[20]={0xA6,0x8B,0xED,0xC3,0x34,0x18,0x02,0x9C,0x1D,0x3C,0xE3,0x3B,0x9A,0x32,0x1F,0xCC,0xBB,0x9E,0x0F,0x0B};
@@ -1040,7 +1043,7 @@ static inline void wbe64(u8 *p, u64 v)
 #include <openssl/sha.h>
 #include "pkg2zip_aes_x86.h"
 
-static void decrypt_debug_pkg_normal(uint8_t *pkg, uint64_t size, uint64_t offset)
+static void decrypt_debug_pkg_normal(uint8_t *pkg, uint64_t size, uint64_t offset, int file, uint64_t len)
 {
 	u8 key[0x40];
 	u8 bfr[0x1c];
@@ -1054,24 +1057,61 @@ static void decrypt_debug_pkg_normal(uint8_t *pkg, uint64_t size, uint64_t offse
 
 	sha1(key, sizeof key, bfr);
 
-	for (i = 0; i < size; i++) {
-			if (i != 0 && (i % 16) == 0) {
+	if(len>(10*1024*1024))
+	{
+		munmap(pkg, 10*1024*1024);
+	}
+	else
+	{
+		munmap(pkg, len);
+	}
+	if(len>(100*1024*1024))
+	{
+		pkg=(uint8_t *)mmap(0, 100*1024*1024, PROT_READ | PROT_WRITE, MAP_PRIVATE, file, 0);
+	}
+	else
+	{
+		pkg=(uint8_t *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_PRIVATE, file, 0);
+	}	
+		
+	uint32_t last_round_size=len;
+	uint64_t count=offset;
+	lseek(file, 0, SEEK_SET);
+	for (i = offset; i < (size+offset); i++, count++) {
+			if (i != offset && (i % 16) == 0) {
 				wbe64(key + 0x38, be64(key + 0x38) + 1);	
 				sha1(key, sizeof key, bfr);
 			}
-			pkg[offset + i] ^= bfr[i & 0xf];
 			if(i%(100*1024*1024)==0)
 			{
-				munmap(pkg-100*1024*1024+i, 100*1024*1024);
+				write(file, pkg, 100*1024*1024);
+				munmap(pkg, 100*1024*1024);
+				lseek(file, i, SEEK_SET);
+				if((size+offset-i)>(100*1024*1024))
+				{
+					pkg=(uint8_t *)mmap(0, 100*1024*1024, PROT_READ | PROT_WRITE, MAP_PRIVATE, file, i);
+				}
+				else
+				{
+					pkg=(uint8_t *)mmap(0, (size+offset-i), PROT_READ | PROT_WRITE, MAP_PRIVATE, file, i);
+					lseek(file, i, SEEK_SET);
+					last_round_size=(size+offset-i);
+				}
+				count=0;
 			}
+			pkg[count] ^= bfr[i & 0xf];
 		}
+		write(file, pkg, last_round_size);
+		munmap(pkg, last_round_size);
 }
 
-static void decrypt_debug_pkg_sse(uint8_t *pkg, uint64_t size, uint64_t offset)
+static void decrypt_debug_pkg_sse(uint8_t *pkg, uint64_t size, uint64_t offset, int file, uint64_t len)
 {
 	u8 key[0x40];
 	u8 bfr[0x1c];
 	u64 i;
+	u64 ret=0;
+	uint32_t last_round_size=len;
 
 	memset(key, 0, sizeof key);
 	memcpy(key, pkg + 0x60, 8);
@@ -1081,30 +1121,64 @@ static void decrypt_debug_pkg_sse(uint8_t *pkg, uint64_t size, uint64_t offset)
 
 	SHA1(key, sizeof key, bfr);
 
-	region_xor_sse(pkg+offset,bfr, 0x10); 
-	#pragma unroll
-	for (i = 0x10; i < size; i+=0x10) {
-			
-			wbe64(key + 0x38, be64(key + 0x38) + 1);
-			SHA1(key, sizeof key, bfr);
-			
-			region_xor_sse(pkg+offset+i,bfr, 0x10); 
-			if(i%(100*1024*1024)==0)
-			{
-				munmap(pkg-100*1024*1024+i, 100*1024*1024);
-			}
-		}
-}
-
-static void decrypt_debug_pkg(uint8_t *pkg, uint64_t size, uint64_t offset_data)
-{
-	if(aes128_supported_x86())
+	if(len>(10*1024*1024))
 	{
-		decrypt_debug_pkg_sse(pkg,size,offset_data);
+		munmap(pkg, 10*1024*1024);
 	}
 	else
 	{
-		decrypt_debug_pkg_normal(pkg,size,offset_data);
+		munmap(pkg, len);
+	}
+	if(len>(100*1024*1024))
+	{
+		pkg=(uint8_t *)mmap(0, 100*1024*1024, PROT_READ | PROT_WRITE, MAP_PRIVATE, file, 0);
+	}
+	else
+	{
+		pkg=(uint8_t *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_PRIVATE, file, 0);
+	}
+	
+	region_xor_sse(pkg+offset,bfr, 0x10); 
+	lseek(file, 0, SEEK_SET);
+	uint64_t count=offset+0x10;
+	#pragma unroll
+	for (i = (0x10+offset); i < (size+offset); i+=0x10, count+=0x10) {
+		
+			wbe64(key + 0x38, be64(key + 0x38) + 1);
+			SHA1(key, sizeof key, bfr);
+			if(i%(100*1024*1024)==0)
+			{
+				write(file, pkg, 100*1024*1024);
+				munmap(pkg, 100*1024*1024);
+				lseek(file, i, SEEK_SET);
+				if((size+offset-i)>(100*1024*1024))
+				{
+					pkg=(uint8_t *)mmap(0, 100*1024*1024, PROT_READ | PROT_WRITE, MAP_PRIVATE, file, i);
+				}
+				else
+				{
+					pkg=(uint8_t *)mmap(0, (size+offset-i), PROT_READ | PROT_WRITE, MAP_PRIVATE, file, i);
+					lseek(file, i, SEEK_SET);
+					last_round_size=(size+offset-i);
+				}
+				count=0;
+			}
+			region_xor_sse(pkg+count,bfr, 0x10); 
+		}
+			
+		write(file, pkg, last_round_size);
+		munmap(pkg, last_round_size);
+}
+
+static void decrypt_debug_pkg(uint8_t *pkg, uint64_t size, uint64_t offset_data, int file, uint64_t len)
+{
+	if(aes128_supported_x86())
+	{
+		decrypt_debug_pkg_sse(pkg,size,offset_data, file, len);
+	}
+	else
+	{
+		decrypt_debug_pkg_normal(pkg,size,offset_data, file, len);
 	}
 }
 
@@ -1114,7 +1188,7 @@ int decrypt_retail_pkg_data(uint8_t *buf, uint64_t size, uint8_t *data_riv, uint
 	return 0;
 }
 
-static void check_ps2_pkg_patch(uint8_t *pkg, uint64_t offset)
+static void check_ps2_pkg_patch(uint8_t *pkg, uint64_t offset, int fd)
 {
 	u64 i;
 	u64 n_files;
@@ -1124,6 +1198,7 @@ static void check_ps2_pkg_patch(uint8_t *pkg, uint64_t offset)
 	u32 flags;
 	char fname[256];
 	u8 *tmp;
+	u8 tmp_buf[0x100];
 	
 	uint8_t digest[20];
 	uint8_t R[0x15];
@@ -1152,11 +1227,14 @@ static void check_ps2_pkg_patch(uint8_t *pkg, uint64_t offset)
 			{
 				printf("found %s..Resigning\n", fname);
 				//sign_enc_buf(pkg+file_offset);
-				sha1(pkg+file_offset+0x00, 0xd8, digest);
+				lseek(fd,file_offset+0x00, SEEK_SET);
+				read(fd, tmp_buf, 0x100);
+				sha1(tmp_buf, 0xd8, digest);
 				ecdsa_sign(digest, R, S);
-		
-				memcpy(pkg+file_offset+0xd8, R+1, 0x14);
-				memcpy(pkg+file_offset+0xd8+0x14, S+1, 0x14);
+				lseek(fd,file_offset+0xd8, SEEK_SET);
+				write(fd, R+1, 0x14);
+				lseek(fd,file_offset+0xd8+0x14, SEEK_SET);
+				write(fd, S+1, 0x14);
 			}
 	}
 }
@@ -1353,6 +1431,8 @@ int parse_ps3_psp_pkg(uint8_t *pkg, uint32_t toc_len, uint8_t *iv_const)
 
 int main(int argc, char *argv[])
 {
+	printf("----------------PS3XPLOIT RESIGNER v2----------------\nHAN v3 tools brought you by W, escortd3w, bguerville, habib\nSpecial thanks to Joonie for testing this tool\n-----------------------------------------------------\n");
+
 	if(argc<2)
 	{
 		goto done;
@@ -1453,25 +1533,22 @@ if((strstr(argv[1], ".rap")) || (strstr(argv[1], ".RAP")))
 		ecdsa_set_curve();
 		ecdsa_set_pub();
 		ecdsa_set_priv();
-		FILE *fp=fopen(argv[1], "rb+");
-		if(!fp)
+		struct stat stat1;
+		if(stat(argv[1], &stat1)!=0)
 		{
 			printf("cant open file!\n");
+			getchar();
 			return -1;
 		}
-		uint64_t len=0;
-		fseek(fp,0,SEEK_END);
-		len=ftell(fp);
-		printf("size:%x\n", len);
-		fseek(fp,0,SEEK_SET);
-		fclose(fp);
+		uint64_t len=stat1.st_size;
+		printf("size:%016llx\n", len);
 		
 		int fd=open(argv[1], O_RDONLY);
-		uint8_t *buf2=(uint8_t *)mmap(0, len, PROT_READ, MAP_SHARED, fd, 0);
+		uint8_t *buf2=NULL;
 		char out_path[4096];
 		strcpy(out_path, argv[1]);
 		strcat(out_path, "_signed.pkg");
-		int fd_out=open(out_path, O_RDWR|O_CREAT);
+		int fd_out=open(out_path, O_RDWR|O_CREAT, 0600);
 		lseek(fd_out, 0, SEEK_SET);
 		printf("making backup\n");
 		uint64_t bkp=0;
@@ -1479,20 +1556,30 @@ if((strstr(argv[1], ".rap")) || (strstr(argv[1], ".RAP")))
 		{
 			if(len-bkp<100*1024*1024)
 			{
-				write(fd_out, buf2+bkp, len-bkp);
-				munmap(buf2+bkp, len-bkp);
+				buf2=(uint8_t *)mmap(0, len-bkp, PROT_READ, MAP_SHARED, fd, bkp);
+				write(fd_out, buf2, len-bkp);
+				munmap(buf2, len-bkp);
 			}
 			else
 			{
+				buf2=(uint8_t *)mmap(0, 100*1024*1024, PROT_READ, MAP_SHARED, fd, bkp);
 				printf("bkp:%016llx\n", bkp);
 				lseek(fd_out, bkp, SEEK_SET);
-				write(fd_out, buf2+bkp, 100*1024*1024);
-				munmap(buf2+bkp, 100*1024*1024);
+				write(fd_out, buf2, 100*1024*1024);
+				munmap(buf2, 100*1024*1024);
 			}
 		}
 			
 		close(fd);
-		uint8_t *buf=(uint8_t *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd_out, 0);
+		uint8_t *buf=NULL;
+		if(len>(10*1024*1024))
+		{
+			buf=(uint8_t *)mmap(0, 10*1024*1024, PROT_READ | PROT_WRITE, MAP_SHARED, fd_out, 0);
+		}
+		else
+		{
+			buf=(uint8_t *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd_out, 0);
+		}
 		
 		if(!buf)
 		{
@@ -1508,6 +1595,10 @@ if((strstr(argv[1], ".rap")) || (strstr(argv[1], ".RAP")))
 		uint32_t header_size=*(uint32_t *)(buf+0x10);
 		header_size=swap_uint32(header_size);
 		uint32_t toc_size=(swap_uint32(*(uint32_t *)(buf+0x14)))*0x20;	
+		
+		uint32_t pkg_type=*(uint32_t *)(buf+pkg_info_offset+0x14);
+		pkg_type=swap_uint32(pkg_type);
+		
 		memcpy(iv, buf+0x70, 0x10);
 		uint8_t iv_bkp[0x10];
 		memcpy(iv_bkp, iv, 0x10);
@@ -1518,42 +1609,47 @@ if((strstr(argv[1], ".rap")) || (strstr(argv[1], ".RAP")))
 		{
 			*(uint8_t *)&buf[4]=0x80;
 			uint8_t retail_flag=0x80;
-			if(argv[2])
+		
+		//removing this part of code somehow crashes my program. compiler issues somehow i suppose
+			if(0)
 			{
-				if(strstr(argv[2], "psp"))
-				{
-					*(uint8_t *)&buf[7]=2; //type psp set
-					printf("PSP flag set!\n");
-				}
 			}
 			else
 			{	
-				char is_minis_psx[0x20]={"yes"};
-				char user_input[0x20];
-				printf("Is this pkg type psp minis or psx?if so, type \"yes\"(without quotes) otherwise type anything else:");
-				scanf("%s", &user_input); //popular tools resign as type PS3 DEBUG even if minis/psx
-				printf("\n");
-				if(strcmp(is_minis_psx, user_input)==0)
+				char prevent_crash[0x20]={"yes"};
+				char prevent_crash2[0x20]={""};
+				if(strcmp(prevent_crash, prevent_crash2)==0)
 				{
-					*(uint8_t *)&buf[7]=2; //type psp set
-					printf("PSP flag set!\n");
+					printf("\n");
 				}
 			}
-			printf("decrypting debug pkg\n");
-			decrypt_debug_pkg(buf, data_size, offset_data);
-			munmap(buf, len);
+			//end
 			
-			buf=(uint8_t *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd_out, 0);
+
+			if((pkg_type==0xf) || (pkg_type==0x6) || (pkg_type==0x7)) //0xf==minis, 0x6==ps1, 0x7==psp, 0x14==remastered
+			{
+				printf("PKG type PSP/PSX detected\n");
+				*(uint8_t *)&buf[7]=2;
+			}
+			printf("decrypting debug pkg\n");	
+			decrypt_debug_pkg(buf, data_size, offset_data, fd_out, len);
+			
+			if(len>(10*1024*1024))
+			{
+				buf=(uint8_t *)mmap(0, 10*1024*1024, PROT_READ | PROT_WRITE, MAP_SHARED, fd_out, 0);
+			}
+			else
+			{
+				buf=(uint8_t *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd_out, 0);
+			}
 			
 			printf("encrypting retail pkg\n");
-			check_ps2_pkg_patch(buf, offset_data);
+			check_ps2_pkg_patch(buf, offset_data, fd_out);
 			if(*(uint8_t *)&buf[7]==2)
 			{
 				memcpy(iv, iv_bkp, 0x10);
 				parse_psp_pkg(buf+offset_data, toc_size, iv, data_size, fd_out, offset_data);
-				munmap(buf, len);
-				buf=(uint8_t *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd_out, 0);
-			
+
 				memcpy(iv, iv_bkp, 0x10);
 				decrypt_retail_pkg_data(buf+offset_data, toc_size, iv, pkg_key_psp);
 				memcpy(iv, iv_bkp, 0x10);
@@ -1562,9 +1658,7 @@ if((strstr(argv[1], ".rap")) || (strstr(argv[1], ".RAP")))
 			{
 				memcpy(iv, iv_bkp, 0x10);
 				parse_psp_pkg(buf+offset_data, toc_size, iv, data_size, fd_out, offset_data);
-				munmap(buf, len);
-				buf=(uint8_t *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd_out, 0);
-			
+
 				memcpy(iv, iv_bkp, 0x10);
 				decrypt_retail_pkg_data(buf+offset_data, toc_size, iv, pkg_key);
 			}
@@ -1579,8 +1673,6 @@ if((strstr(argv[1], ".rap")) || (strstr(argv[1], ".RAP")))
 				decrypt_retail_pkg_data(buf+offset_data, toc_size, iv, pkg_key_psp);
 				memcpy(iv, iv_bkp, 0x10);
 				parse_psp_pkg(buf+offset_data, toc_size, iv, data_size, fd_out, offset_data);
-				munmap(buf, len);
-				buf=(uint8_t *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd_out, 0);
 			
 			}
 			else
@@ -1589,20 +1681,15 @@ if((strstr(argv[1], ".rap")) || (strstr(argv[1], ".RAP")))
 				decrypt_retail_pkg_data(buf+offset_data, toc_size, iv, pkg_key);
 				memcpy(iv, iv_bkp, 0x10);
 				parse_psp_pkg(buf+offset_data, toc_size, iv, data_size, fd_out, offset_data);
-				munmap(buf, len);
-				buf=(uint8_t *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd_out, 0);
-			
+
 				memcpy(iv, iv_bkp, 0x10);
 			}
 			printf("encrypting retail pkg\n");
-			check_ps2_pkg_patch(buf, offset_data);
+			check_ps2_pkg_patch(buf, offset_data, fd_out);
 			
 			if(*(uint8_t *)&buf[7]==2)
 			{
 				parse_psp_pkg(buf+offset_data, toc_size, iv, data_size, fd_out, offset_data);
-				munmap(buf, len);
-				buf=(uint8_t *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd_out, 0);
-			
 				memcpy(iv, iv_bkp,0x10);
 				decrypt_retail_pkg_data(buf+offset_data, toc_size, iv, pkg_key_psp);
 			}
@@ -1610,9 +1697,7 @@ if((strstr(argv[1], ".rap")) || (strstr(argv[1], ".RAP")))
 			{
 				memcpy(iv, iv_bkp,0x10);
 				parse_psp_pkg(buf+offset_data, toc_size, iv, data_size, fd_out, offset_data);
-				munmap(buf, len);
-				buf=(uint8_t *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd_out, 0);
-			
+
 				memcpy(iv, iv_bkp,0x10);
 				decrypt_retail_pkg_data(buf+offset_data, toc_size, iv, pkg_key);
 			}
@@ -1625,8 +1710,14 @@ if((strstr(argv[1], ".rap")) || (strstr(argv[1], ".RAP")))
 
 		cmac_hash_forge(pkg_key, 0x10, buf+pkg_info_offset, header_size-0x40, buf+pkg_info_offset+header_size-0x40);
 
-		munmap(buf, len);
-		buf=(uint8_t *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd_out, 0);
+		if(len>(10*1024*1024))
+		{
+			munmap(buf, 10*1024*1024);
+		}
+		else
+		{
+			munmap(buf, len);
+		}
 		
 		SHA_CTX ctx;
 
@@ -1636,18 +1727,19 @@ if((strstr(argv[1], ".rap")) || (strstr(argv[1], ".RAP")))
 		{
 			if(len-sha1_loop-0x20<100*1024*1024)
 			{
-				SHA1_Update( &ctx, buf+sha1_loop, len-sha1_loop-0x20 );
-				SHA1_Final(buf+len-0x20, &ctx);
-				munmap(buf+sha1_loop, len-sha1_loop);
+				buf=(uint8_t *)mmap(0, len-sha1_loop, PROT_READ | PROT_WRITE, MAP_SHARED, fd_out, sha1_loop);
+				SHA1_Update( &ctx, buf, len-sha1_loop-0x20 );
+				SHA1_Final(buf+len-sha1_loop-0x20, &ctx);
+				munmap(buf, len-sha1_loop);
 			}
 			else
 			{
-				SHA1_Update(&ctx, buf+sha1_loop, 100*1024*1024);
-				munmap(buf+sha1_loop, 100*1024*1024);
+				buf=(uint8_t *)mmap(0, 100*1024*1024, PROT_READ | PROT_WRITE, MAP_SHARED, fd_out, sha1_loop);
+				SHA1_Update(&ctx, buf, 100*1024*1024);
+				munmap(buf, 100*1024*1024);
 			}
 		}
 	
-		munmap(buf, len);
 		close(fd_out);
 		chmod(out_path, 0777);
 		printf("pkg signed!\n");
