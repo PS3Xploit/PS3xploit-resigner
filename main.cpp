@@ -1138,7 +1138,7 @@ static void decrypt_debug_pkg_sse(uint8_t *pkg, uint64_t size, uint64_t offset, 
 		pkg=(uint8_t *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_PRIVATE, file, 0);
 	}
 	
-	region_xor_sse(pkg+offset,bfr, 0x10); 
+	xor1_sse(pkg+offset,pkg+offset,bfr, 0x10); 
 	lseek(file, 0, SEEK_SET);
 	uint64_t count=offset+0x10;
 	#pragma unroll
@@ -1163,7 +1163,7 @@ static void decrypt_debug_pkg_sse(uint8_t *pkg, uint64_t size, uint64_t offset, 
 				}
 				count=0;
 			}
-			region_xor_sse(pkg+count,bfr, 0x10); 
+			xor1_sse(pkg+count,pkg+count,bfr, 0x10); 
 		}
 			
 		write(file, pkg, last_round_size);
@@ -1609,21 +1609,6 @@ if((strstr(argv[1], ".rap")) || (strstr(argv[1], ".RAP")))
 		{
 			*(uint8_t *)&buf[4]=0x80;
 			uint8_t retail_flag=0x80;
-		
-		//removing this part of code somehow crashes my program. compiler issues somehow i suppose
-			if(0)
-			{
-			}
-			else
-			{	
-				char prevent_crash[0x20]={"yes"};
-				char prevent_crash2[0x20]={""};
-				if(strcmp(prevent_crash, prevent_crash2)==0)
-				{
-					printf("\n");
-				}
-			}
-			//end
 			
 
 			if((pkg_type==0xf) || (pkg_type==0x6) || (pkg_type==0x7)) //0xf==minis, 0x6==ps1, 0x7==psp, 0x14==remastered

@@ -20,7 +20,7 @@
     x = _mm_xor_si128(x, a);                \
 }
 
-void region_xor_sse(unsigned char* dst, unsigned char* src, int block_size)
+/*void region_xor_sse(unsigned char* dst, unsigned char* src, int block_size)
 {
   __m128i* dst_ptr = (__m128i*)dst;
 
@@ -29,6 +29,25 @@ void region_xor_sse(unsigned char* dst, unsigned char* src, int block_size)
 
     xmm2 = _mm_xor_si128(xmm1, xmm2);
     _mm_store_si128(dst_ptr, xmm2);
+}*/
+
+void region_xor_sse(unsigned char* dst, unsigned char* src, int len)
+{
+    unsigned char * restrict p1 = __builtin_assume_aligned(src, 16);
+    unsigned char * restrict p2 = __builtin_assume_aligned(dst, 16);
+
+    unsigned int i;
+    for (i = 0; i < len; ++i)
+        p2[i] = p1[i] ^ p2[i];
+}
+
+void xor1_sse(unsigned char *dest, unsigned char *src1, unsigned char *src2, int size)
+{
+	int i;
+	for(i = 0; i < size; i++)
+	{
+		dest[i] = src1[i] ^ src2[i];
+	}
 }
 
 void aes128_init_x86(aes128_key* ctx, const uint8_t* key)

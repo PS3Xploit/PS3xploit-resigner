@@ -14,6 +14,7 @@ void aes128_cmac_process_x86(const aes128_key* ctx, uint8_t* block, const uint8_
 void aes128_psp_decrypt_x86(const aes128_key* ctx, const uint8_t* prev, const uint8_t* block, uint8_t* buffer, uint32_t size);
 
 void region_xor_sse(   unsigned char* dst, unsigned char* src, int block_size);
+void xor1_sse(unsigned char *dest, unsigned char *src1, unsigned char *src2, int size);
 
 #ifdef __cplusplus
 }
