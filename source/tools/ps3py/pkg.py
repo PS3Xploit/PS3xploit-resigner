@@ -531,6 +531,7 @@ except:
 def crypt(key, inbuf, length):
 	if not isinstance(key, list):
 		return ""
+	# Call our ultra fast c implemetation
 	return pkgcrypt.pkgcrypt(listToString(key), inbuf, length);
 
 	# Original python (slow) implementation
@@ -618,6 +619,29 @@ def pack(folder, contentid, outname=None):
 		header.QADigest[i] = 0
 		header.KLicensee[i] = 0
 	
+	#content type	type name		install path (on ps3)	notes
+	#0x00000004	GameData (also Patches)	/dev_hdd0/game/
+	#0x00000005	Game_Exec		/dev_hdd0/game/
+	#0x00000006	PS1emu			/dev_hdd0/game/
+	#0x00000007	PSP & PCEngine		/dev_hdd0/game/
+	#0x00000008
+	#0x00000009	Theme			/dev_hdd0/theme
+	#0x0000000A	Widget			/dev_hdd0/widget
+	#0x0000000B	License			/dev_hdd0/home/<current user>/exdata
+	#0x0000000C	VSH Module		/dev_hdd0/vsh/modules/
+	#0x0000000D	PSN Avatar		/dev_hdd0/home/<current user>/psn_avatar
+	#0x0000000E	PSPgo			/dev_hdd0/game/		Displayed as Unknown Album: Corrupted Data
+	#0x0000000F	Minis			/dev_hdd0/game/
+	#0x00000010	NEOGEO			/dev_hdd0/game/
+	#0x00000011	VMC			/dev_hdd0/tmp/vmc/
+	#0x00000012	Seen on PS2 classic	/dev_hdd0/game/
+	#0x00000013
+	#0x00000014	Seen on PSP remastered	/dev_hdd0/game/
+	#0x00000015	PSVita (PSP2GD)
+	#0x00000016	PSVita (PSP2AC)
+	#0x00000017	PSVita (PSP2LA)
+	#0x00000018
+	#0x00000019	WT (Web TV?)		/dev_hdd0/game/
 	
 	metaBlock = MetaHeader()
 	metaBlock.unk1 		= 1 #doesnt change output of --extract
