@@ -1,0 +1,14 @@
+*.d
+*.o
+*.patch
+*.pkg
+*.PKG
+*.rap
+*.RAP
+*.rif
+*.RIF
+*.so
+act.dat
+idps.hex
+ps3xploit_rifgen_edatresign
+signed_act.dat
