@@ -43,7 +43,6 @@ function ps3xploit_resign() {
 
   # Output dirs
   output_pkgs_dir="${cwd}/output/pkgs";
-  output_rif_pkg_dir="${cwd}/output/rif_pkg";
 
   # Input files
   input_act_dat="${cwd}/input/act_dat/act.dat";
@@ -55,7 +54,7 @@ function ps3xploit_resign() {
 
   # RIF Package ContentID and Name
   rif_pkg_contentid="RIF000-INSTALLER_00-0000000000000000";
-  output_rif_pkg="${output_rif_pkg_dir}/PKG_RIF-INSTALLER.pkg";
+  rif_pkg_name="${output_pkgs_dir}/PKG_RIF-INSTALLER.pkg";
 
   ###
   ### Check
@@ -224,7 +223,7 @@ function ps3xploit_resign() {
     cp "${ps3py_lib}" "${ps3py_tools_dir}/";
 
     # Cleanup
-    rm -rf "${output_rif_pkg_dir:?}/"*;
+    rm -rf "${rif_pkg_name:?}" "${rif_pkg_name:?}_signed.pkg";
 
     # Create a TEMPorary DIR
     temp_dir=$(mktemp -d);
@@ -267,16 +266,16 @@ function ps3xploit_resign() {
     mv "${temp_dir}/signed_act.dat" "${temp_dir}/act.dat";
 
     # Make PKG with all RIF files and ReSigned 'act.dat'
-    ${PS3XPLOIT_PYTHON_BINARY} "${PS3XPLOIT_PKGPY_BINARY}" --contentid "${rif_pkg_contentid}" "${temp_dir}/" "${output_rif_pkg}";
+    ${PS3XPLOIT_PYTHON_BINARY} "${PS3XPLOIT_PKGPY_BINARY}" --contentid "${rif_pkg_contentid}" "${temp_dir}/" "${rif_pkg_name}";
 
     # Resign the new RIF PKG [HACK: Send 2 lines to PKG RESIGNER]
-    ${PS3XPLOIT_RESIGNER_BINARY} "${output_rif_pkg}" <<< echo -e '\n\n';
+    ${PS3XPLOIT_RESIGNER_BINARY} "${rif_pkg_name}" <<< echo -e '\n\n';
 
     # Cleanup
-    rm -rf "${output_rif_pkg}" "${temp_dir:?}/";
+    rm -rf "${rif_pkg_name}" "${temp_dir:?}/";
 
     # Update variable
-    output_rif_pkg="${output_rif_pkg}_signed.pkg";
+    rif_pkg_name="${rif_pkg_name}_signed.pkg";
   fi;
 
   ###
@@ -308,7 +307,7 @@ function ps3xploit_resign() {
   if [ "${input_raps_size}" -gt 0 ]; then
     echo;
     echo "  RIF PKG:";
-    echo "    .${output_rif_pkg##${cwd}}";
+    echo "    .${rif_pkg_name##${cwd}}";
     echo;
   fi;
 
