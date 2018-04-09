@@ -43,7 +43,7 @@ Linux package need build from source `cd source/src; make` output is `source/src
     <td rowspan="3">RAP to RIF<br></td>
     <td>act.dat</td>
     <td>input/act_dat/</td>
-    <td rowspan="3">output/rif_pkg/PKG_RIF-INSTALLER.pkg_signed.pkg</td>
+    <td rowspan="3">output/pkgs/PKG_RIF-INSTALLER.pkg_signed.pkg</td>
   </tr>
   <tr>
     <td>idps.hex</td>

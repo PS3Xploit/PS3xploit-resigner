@@ -15,27 +15,33 @@ cd "%CURRENT_DIR%"
 set TOOLS_PKG_EXDATA=source\tools\ps3py_exe\pkg_exdata.exe
 set TOOLS_RESIGNER=source\pre-compiled\windows\ps3xploit_rifgen_edatresign.exe
 
-:: Output variables
+:: Output Dirs
 set OUTPUT_PKGS_DIR=output\pkgs
-set OUPUT_RIF_PKG_FILES=output\temp
-set OUPUT_RIF_PKG_NAME=output\rif_pkg\PKG_RIF-INSTALLER.pkg
+set OUTPUT_TEMP_DIR=output\temp
 
 :: Input Dirs
-set INPUT_RAPS_DIR=input\raps
 set INPUT_PKGS_DIR=input\pkgs
+set INPUT_RAPS_DIR=input\raps
 
 :: Input Files
 set INPUT_ACT_DAT=input\act_dat\act.dat
 set INPUT_IDPS_HEX=input\idps_hex\idps.hex
 
-:: RIF Package ContentID
+:: RIF Package ContentID and Name
 set RIF_PKG_CONTENTID=RIF000-INSTALLER_00-0000000000000000
+set RIF_PKG_NAME=PKG_RIF-INSTALLER.pkg
 
 :: Cleanup before everything
 if exist "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\*.pkg" del "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\*.pkg"
-if exist "%CURRENT_DIR%\%OUPUT_RIF_PKG_NAME%_signed.pkg" del "%CURRENT_DIR%\%OUPUT_RIF_PKG_NAME%_signed.pkg"
+if exist "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\%RIF_PKG_NAME%_signed.pkg" del "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\%RIF_PKG_NAME%_signed.pkg"
 
-:: Copy RAP files
+:: Prevent missing dirs
+if not exist "%CURRENT_DIR%\%INPUT_PKGS_DIR%\" mkdir "%CURRENT_DIR%\%INPUT_PKGS_DIR%\"
+if not exist "%CURRENT_DIR%\%INPUT_RAPS_DIR%\" mkdir "%CURRENT_DIR%\%INPUT_RAPS_DIR%\"
+if not exist "%CURRENT_DIR%\%OUTPUT_TEMP_DIR%\" mkdir "%CURRENT_DIR%\%OUTPUT_TEMP_DIR%\"
+if not exist "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\" mkdir "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\"
+
+:: Check for RAP or PKG files
 if not exist "%CURRENT_DIR%\%INPUT_RAPS_DIR%\*.rap" (
 	echo. 
 	echo ps3xploit_resign: No '.rap' files found on '.\%INPUT_RAPS_DIR%\'
@@ -50,7 +56,6 @@ if not exist "%CURRENT_DIR%\%INPUT_RAPS_DIR%\*.rap" (
 		exit /b
 	)
 )
-copy /Y "%CURRENT_DIR%\%INPUT_RAPS_DIR%\*.rap" "%CURRENT_DIR%\%OUPUT_RIF_PKG_FILES%\"
 
 :: Copy act.dat files
 if not exist "%CURRENT_DIR%\%INPUT_ACT_DAT%" (
@@ -60,7 +65,7 @@ if not exist "%CURRENT_DIR%\%INPUT_ACT_DAT%" (
 	pause
 	exit /b
 )
-copy /Y "%CURRENT_DIR%\%INPUT_ACT_DAT%" "%CURRENT_DIR%\%OUPUT_RIF_PKG_FILES%\"
+copy /Y "%CURRENT_DIR%\%INPUT_ACT_DAT%" "%CURRENT_DIR%\%OUTPUT_TEMP_DIR%\"
 
 :: Copy idps.hex files
 if not exist "%CURRENT_DIR%\%INPUT_IDPS_HEX%" (
@@ -70,46 +75,49 @@ if not exist "%CURRENT_DIR%\%INPUT_IDPS_HEX%" (
 	pause
 	exit /b
 )
-copy /Y "%CURRENT_DIR%\%INPUT_IDPS_HEX%" "%CURRENT_DIR%\%OUPUT_RIF_PKG_FILES%\"
+copy /Y "%CURRENT_DIR%\%INPUT_IDPS_HEX%" "%CURRENT_DIR%\%OUTPUT_TEMP_DIR%\"
+
+:: Copy RAP files
+copy /Y "%CURRENT_DIR%\%INPUT_RAPS_DIR%\*.rap" "%CURRENT_DIR%\%OUTPUT_TEMP_DIR%\"
 
 :: Resign all RAP files to RIF files
-if exist "%CURRENT_DIR%\%OUPUT_RIF_PKG_FILES%\*.rif" del "%CURRENT_DIR%\%OUPUT_RIF_PKG_FILES%\*.rif"
-for %%I in ("%CURRENT_DIR%\%OUPUT_RIF_PKG_FILES%\*.rap") do (
-	cd "%CURRENT_DIR%\%OUPUT_RIF_PKG_FILES%\"
-	"%CURRENT_DIR%\%TOOLS_RESIGNER%" "%%I"
+if exist "%CURRENT_DIR%\%OUTPUT_TEMP_DIR%\*.rif" del "%CURRENT_DIR%\%OUTPUT_TEMP_DIR%\*.rif"
+for %%I in ("%CURRENT_DIR%\%OUTPUT_TEMP_DIR%\*.rap") do (
+	cd "%CURRENT_DIR%\%OUTPUT_TEMP_DIR%\"
+	echo y | "%CURRENT_DIR%\%TOOLS_RESIGNER%" "%%I"
 	cd "%CURRENT_DIR%\"
 )
 
-:: Delete unneed files on pkg
-del "%CURRENT_DIR%\%OUPUT_RIF_PKG_FILES%\*.rap"
-del "%CURRENT_DIR%\%OUPUT_RIF_PKG_FILES%\act.dat"
-del "%CURRENT_DIR%\%OUPUT_RIF_PKG_FILES%\idps.hex"
+:: Delete unneed files on PKG RIF
+del "%CURRENT_DIR%\%OUTPUT_TEMP_DIR%\*.rap"
+del "%CURRENT_DIR%\%OUTPUT_TEMP_DIR%\act.dat"
+del "%CURRENT_DIR%\%OUTPUT_TEMP_DIR%\idps.hex"
 
 :: Move 'signed_act.dat' to 'act.dat'
-move "%CURRENT_DIR%\%OUPUT_RIF_PKG_FILES%\signed_act.dat" "%CURRENT_DIR%\%OUPUT_RIF_PKG_FILES%\act.dat"
+move "%CURRENT_DIR%\%OUTPUT_TEMP_DIR%\signed_act.dat" "%CURRENT_DIR%\%OUTPUT_TEMP_DIR%\act.dat"
 
 :: Build PKG RIF
-"%CURRENT_DIR%\%TOOLS_PKG_EXDATA%" --contentid %RIF_PKG_CONTENTID% %OUPUT_RIF_PKG_FILES%\ %OUPUT_RIF_PKG_NAME%
+"%CURRENT_DIR%\%TOOLS_PKG_EXDATA%" --contentid %RIF_PKG_CONTENTID% %OUTPUT_TEMP_DIR%\ %OUTPUT_PKGS_DIR%\%RIF_PKG_NAME%
 
 :: Resign PKG RIF
-if not exist "%CURRENT_DIR%\%OUPUT_RIF_PKG_NAME%" (
+if not exist "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\%RIF_PKG_NAME%" (
 	echo. 
-	echo ps3xploit_resign: '.\%OUPUT_RIF_PKG_NAME%' not found, exiting...
+	echo ps3xploit_resign: '.\%OUTPUT_PKGS_DIR%\%RIF_PKG_NAME%' not found, exiting...
 	echo. 
 	pause
 	exit /b
 )
-"%CURRENT_DIR%\%TOOLS_RESIGNER%" "%CURRENT_DIR%\%OUPUT_RIF_PKG_NAME%"
+echo y | "%CURRENT_DIR%\%TOOLS_RESIGNER%" "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\%RIF_PKG_NAME%"
 
 :: Cleanup
-del "%CURRENT_DIR%\%OUPUT_RIF_PKG_FILES%\*.rif"
-del "%CURRENT_DIR%\%OUPUT_RIF_PKG_FILES%\act.dat"
-del "%CURRENT_DIR%\%OUPUT_RIF_PKG_NAME%"
+del "%CURRENT_DIR%\%OUTPUT_TEMP_DIR%\*.rif"
+del "%CURRENT_DIR%\%OUTPUT_TEMP_DIR%\act.dat"
+del "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\%RIF_PKG_NAME%"
 
 :: Resign PKG files
 :RESIGN_PKG_ONLY
 for %%I in ("%CURRENT_DIR%\%INPUT_PKGS_DIR%\*.pkg") do (
-	"%CURRENT_DIR%\%TOOLS_RESIGNER%" "%%I"
+	echo y | "%CURRENT_DIR%\%TOOLS_RESIGNER%" "%%I"
 	move "%%I_signed.pkg" "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\"
 )
 
@@ -117,20 +125,16 @@ for %%I in ("%CURRENT_DIR%\%INPUT_PKGS_DIR%\*.pkg") do (
 echo. 
 echo ps3xploit_resign: Output files:
 
-:: See RIF PKG
-if exist "%CURRENT_DIR%\%OUPUT_RIF_PKG_NAME%_signed.pkg" (
-	echo. 
-	echo.  RIF PKG:
-	echo.    .\%OUPUT_RIF_PKG_NAME%_signed.pkg
-	echo. 
-)
-
 :: See PKGS signed
 if exist "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\*.pkg" (
 	echo. 
 	echo.  PKGS:
 	for %%I in (%OUTPUT_PKGS_DIR%\*.pkg) do (
-		echo.    .\%%I
+		if "%%I" == "%OUTPUT_PKGS_DIR%\%RIF_PKG_NAME%_signed.pkg" (
+			echo.    [RIF PKG] .\%%I
+		) else (
+			echo.    .\%%I
+		)
 	)
 	echo. 
 )
