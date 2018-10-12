@@ -14,6 +14,7 @@
 #define ACT_DAT_KEYBITS 128
 #define RIF_KEYBITS 128
 #define RAP_KEYBITS 128
+#include "cputype.h"
 #include "aes.h"
 #include "util.h"
 #include "sha1.h"
@@ -1041,7 +1042,9 @@ static inline void wbe64(u8 *p, u64 v)
 }
 
 #include <openssl/sha.h>
-#include "pkg2zip_aes_x86.h"
+#ifdef X86CPU
+	#include "pkg2zip_aes_x86.h"
+#endif
 
 static void decrypt_debug_pkg_normal(uint8_t *pkg, uint64_t size, uint64_t offset, int file, uint64_t len)
 {
@@ -1105,6 +1108,7 @@ static void decrypt_debug_pkg_normal(uint8_t *pkg, uint64_t size, uint64_t offse
 		munmap(pkg, last_round_size);
 }
 
+#ifdef X86CPU
 static void decrypt_debug_pkg_sse(uint8_t *pkg, uint64_t size, uint64_t offset, int file, uint64_t len)
 {
 	u8 key[0x40];
@@ -1169,17 +1173,22 @@ static void decrypt_debug_pkg_sse(uint8_t *pkg, uint64_t size, uint64_t offset, 
 		write(file, pkg, last_round_size);
 		munmap(pkg, last_round_size);
 }
+#endif
 
 static void decrypt_debug_pkg(uint8_t *pkg, uint64_t size, uint64_t offset_data, int file, uint64_t len)
 {
+	#ifdef X86CPU
 	if(aes128_supported_x86())
 	{
 		decrypt_debug_pkg_sse(pkg,size,offset_data, file, len);
 	}
 	else
 	{
+	#endif
 		decrypt_debug_pkg_normal(pkg,size,offset_data, file, len);
+	#ifdef X86CPU
 	}
+	#endif
 }
 
 int decrypt_retail_pkg_data(uint8_t *buf, uint64_t size, uint8_t *data_riv, uint8_t *gpkg_key)
