@@ -32,7 +32,16 @@ set RIF_PKG_CONTENTID=RIF000-INSTALLER_00-0000000000000000
 set RIF_PKG_NAME=PKG_RIF-INSTALLER.pkg
 
 :: Cleanup before everything
-if exist "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\*.pkg" del "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\*.pkg"
+if exist "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\*.pkg" (
+	echo.
+	echo ps3xploit_resign: You have *.pkg files on output folder, keep in mind if you continue these files will be deleted.
+	echo.
+	echo ps3xploit_resign: Are you sure you want to continue?
+	echo.
+	pause
+	del "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\*.pkg"
+	
+)
 if exist "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\%RIF_PKG_NAME%_signed.pkg" del "%CURRENT_DIR%\%OUTPUT_PKGS_DIR%\%RIF_PKG_NAME%_signed.pkg"
 
 :: Prevent missing dirs
