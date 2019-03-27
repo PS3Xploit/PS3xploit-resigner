@@ -680,9 +680,17 @@ uint64_t swap_uint64( uint64_t val )
     return (val << 32) | (val >> 32);
 }
 
+long long current_timestamp() {
+    struct timeval te; 
+    gettimeofday(&te, NULL); // get current time
+    long long milliseconds = te.tv_sec*1000LL + te.tv_usec/1000; // calculate milliseconds
+    // printf("milliseconds: %lld\n", milliseconds);
+    return milliseconds;
+}
+
 FILE *forge_act_dat()
 {
-	uint64_t timestamp=0x1619BF6DDCA; //today
+	uint64_t timestamp=current_timestamp(); //today
 	uint32_t version=1;
 	version=swap_uint32(version);
 	uint32_t unk=2;
@@ -783,7 +791,7 @@ int read_act_dat_and_make_rif(char *path)
 	uint8_t index_act_key_enc[0x10];
 	aes_setkey_enc(&aes_ctxt, rif_key_const, RIF_KEYBITS);
 	aes_crypt_ecb(&aes_ctxt, AES_ENCRYPT, rif+0x40, rif+0x40);
-	uint64_t timestamp=0x1619BF6DDCA; //today
+	uint64_t timestamp=current_timestamp(); //today
 	timestamp=swap_uint64(timestamp);
 	uint32_t version_number=1;
 	version_number=swap_uint32(version_number);
@@ -1204,6 +1212,9 @@ static void check_ps2_pkg_patch(uint8_t *pkg, uint64_t offset, int fd)
 	uint8_t R[0x15];
 	uint8_t S[0x15];
 
+	u8 magic_ps2[4]={'P','S','2',0x00};
+	u8 magic_edat[4]={'N','P','D',0x00};
+	
 	n_files = be32(pkg + 0x14);
 
 	for (i = 0; i < n_files; i++) {
@@ -1218,23 +1229,34 @@ static void check_ps2_pkg_patch(uint8_t *pkg, uint64_t offset, int fd)
 			printf("filename too long: %s\n", pkg + fname_off);
 
 		memset(fname, 0, sizeof fname);
+		memset(tmp_buf, 0, sizeof tmp_buf);
 		strncpy(fname, (char *)(pkg + fname_off), fname_len);
+		flags &= 0xff;
 		printf("%s\n", fname);
 
-	//		if((strstr(fname, "ISO.BIN.ENC")) || (strstr(fname, "ISO.BIN.EDAT")) || (strstr(fname, "CONFIG")) || (strstr(fname, "MINIS.EDAT"))
-		//		|| (strstr(fname, "MINIS2.EDAT")) || (strstr(fname, "drm.edat")) || (strstr(fname, "PSP.EDAT"))) //whitelist for the files to be signed  
-			if((strstr(fname, ".edat")) || (strstr(fname, ".EDAT")) || (strstr(fname, "CONFIG")) || (strstr(fname, "ISO.BIN.ENC")))
+			char *last_slash=strrchr(fname, '/');
+			if(!last_slash) //we are in root of pkg
 			{
-				printf("found %s..Resigning\n", fname);
-				//sign_enc_buf(pkg+file_offset);
-				lseek(fd,file_offset+0x00, SEEK_SET);
-				read(fd, tmp_buf, 0x100);
-				sha1(tmp_buf, 0xd8, digest);
-				ecdsa_sign(digest, R, S);
-				lseek(fd,file_offset+0xd8, SEEK_SET);
-				write(fd, R+1, 0x14);
-				lseek(fd,file_offset+0xd8+0x14, SEEK_SET);
-				write(fd, S+1, 0x14);
+				continue;
+			}
+			if((strstr(last_slash, ".edat")) || (strstr(last_slash, ".EDAT")) || (strstr(last_slash, "CONFIG")) || (strstr(last_slash, "ISO.BIN.ENC")))
+			{
+				if(flags != 4) //it is not a directory
+				{
+					printf("found %s..Resigning\n", last_slash);
+					//sign_enc_buf(pkg+file_offset);
+					lseek(fd,file_offset+0x00, SEEK_SET);
+					read(fd, tmp_buf, 0x100);
+					if((memcmp(tmp_buf, magic_ps2, 4)==0) || (memcmp(tmp_buf, magic_edat,4)==0))  //it is indeed a ps2 file or edat
+					{
+						sha1(tmp_buf, 0xd8, digest);
+						ecdsa_sign(digest, R, S);
+						lseek(fd,file_offset+0xd8, SEEK_SET);
+						write(fd, R+1, 0x14);
+						lseek(fd,file_offset+0xd8+0x14, SEEK_SET);
+						write(fd, S+1, 0x14);
+					}
+				}
 			}
 	}
 }
@@ -1431,7 +1453,7 @@ int parse_ps3_psp_pkg(uint8_t *pkg, uint32_t toc_len, uint8_t *iv_const)
 
 int main(int argc, char *argv[])
 {
-	printf("----------------PS3XPLOIT RESIGNER v2----------------\nHAN v3 tools brought you by W, escortd3w, bguerville, habib\nSpecial thanks to Joonie for testing this tool\n-----------------------------------------------------\n");
+	printf("----------------PS3XPLOIT RESIGNER v3----------------\nHAN v3 tools brought you by W, escortd3w, bguerville, habib\nSpecial thanks to Joonie for testing this tool\n-----------------------------------------------------\n");
 
 	if(argc<2)
 	{
