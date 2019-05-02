@@ -2,9 +2,21 @@ CC=g++
 CFLAGS=-pipe -fvisibility=hidden -D_GNU_SOURCE -O3 -static -D_FILE_OFFSET_BITS=64
 OS_TARGET=ps3xploit_rifgen_edatresign
 LDFLAGS=-lcrypto -lssl
-OBJS=aes.o aes_omac.o main.o sha1.o util.o pkg2zip_aes.o pkg2zip_aes_x86.o
+OBJS=aes.o aes_omac.o main.o sha1.o util.o pkg2zip_aes.o
 .SILENT:
 .SUFFIXES: .c .cpp .o
+
+uname_m := $(shell uname -m)
+
+ifeq ($(uname_m),i386)
+OBJS += pkg2zip_aes_x86.o
+endif
+ifeq ($(uname_m),i686)
+OBJS += pkg2zip_aes_x86.o
+endif
+ifeq ($(uname_m),x86_64)
+OBJS += pkg2zip_aes_x86.o
+endif
 
 $(OS_TARGET): $(OBJS)
 	${LINK}
@@ -13,7 +25,6 @@ $(OS_TARGET): $(OBJS)
 	else \
 		${LINK_FAILED}; \
 	fi
-	
 
 %aes_x86.o: %aes_x86.c
 	@echo [C] $<
