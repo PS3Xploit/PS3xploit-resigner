@@ -532,7 +532,7 @@ def crypt(key, inbuf, length):
 	if not isinstance(key, list):
 		return ""
 	# Call our ultra fast c implemetation
-	return pkgcrypt.pkgcrypt(listToString(key), inbuf, length);
+	#return pkgcrypt.pkgcrypt(listToString(key), inbuf, length); #Fix For macOS 10.13.5
 
 	# Original python (slow) implementation
 	ret = ""
