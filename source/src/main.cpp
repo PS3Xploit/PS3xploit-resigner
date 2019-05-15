@@ -24,6 +24,10 @@
 #define ftell _ftelli64
 #endif
 
+#ifdef __linux
+#include <sys/time.h>
+#endif
+
 #define _LARGEFILE64_SOURCE
 #define _FILE_OFFSET_BITS 64
 
