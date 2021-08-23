@@ -9,6 +9,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 
 #define IDPS_KEYBITS 128
 #define ACT_DAT_KEYBITS 128
